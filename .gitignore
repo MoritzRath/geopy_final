@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+data/geodata/vega_island_outline.cpg
+data/geodata/vega_island_outline.dbf
+data/geodata/vega_island_outline.prj
+data/geodata/vega_island_outline.shp
+data/geodata/vega_island_outline.shx
