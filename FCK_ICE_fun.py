@@ -4,14 +4,14 @@ import ee
 import geemap
 import tempfile
 from arosics import COREG_LOCAL
-from pathlib import Path
+import pandas as pd
+
 
 def getS1date(img):
     index = img.get('system:index').getInfo()
     date = index.split('_')[4][:8]
     file = f"{date}.tif"
     return file
-
 
 def coregisterS1(s1, region, kwargs):
     """
@@ -50,13 +50,21 @@ def coregisterS1(s1, region, kwargs):
         geemap.ee_export_image(img2, filename=path_img2, scale=10,
                                region=regionEXP, file_per_band=False)
         
-        coreg = COREG_LOCAL(path_img2, path_img1, **kwargs)
-        coreg.correct_shifts()
-        crl_afterCORR = COREG_LOCAL(path_img2, coreg.path_out, **kwargs)
-        crl_afterCORR.view_CoRegPoints(figsize=(15,15), backgroundIm='ref')
-        coreg = None
-        crl_afterCORR = None
+        if os.path.exists(path_img1) and os.path.exists(path_img2):
+            coreg = COREG_LOCAL(path_img2, path_img1, **kwargs)
+            coreg.correct_shifts()
+            crl_afterCORR = COREG_LOCAL(path_img2, coreg.path_out, **kwargs)
+            #crl_afterCORR.view_CoRegPoints(figsize=(15,15), backgroundIm='ref')
+            coreg = None
+            crl_afterCORR = None
+        else:
+            continue
         
+def loadCoregistered(filepath):
+    tiflist = []
 
+
+    
+    return tiflist
 
 
