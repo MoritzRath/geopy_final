@@ -4,7 +4,9 @@ import ee
 import geemap
 import tempfile
 from arosics import COREG_LOCAL
-import pandas as pd
+import geopandas as gpd
+import rasterio
+from pathlib import Path
 
 
 def getS1date(img):
@@ -59,12 +61,10 @@ def coregisterS1(s1, region, kwargs):
             crl_afterCORR = None
         else:
             continue
-        
-def loadCoregistered(filepath):
-    tiflist = []
 
 
-    
-    return tiflist
+def loadTifs(filepath):
+    path = sorted(Path(filepath).glob('*.tif'))
+    return [rasterio.open(f) for f in path]
 
 
