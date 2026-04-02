@@ -4,7 +4,6 @@ import ee
 import geemap
 import tempfile
 from arosics import COREG_LOCAL
-import geopandas as gpd
 import rasterio
 from pathlib import Path
 
@@ -64,6 +63,10 @@ def coregisterS1(s1, region, kwargs):
 
 
 def loadTifs(filepath):
+    """
+    This function takes a folder path an reads all the GTIF-files in that folder into a list and returns it.
+    """
+
     path = sorted(Path(filepath).glob('*.tif'))
     return [rasterio.open(f) for f in path]
 
