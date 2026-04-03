@@ -5,6 +5,7 @@ import geemap
 import tempfile
 from arosics import COREG_LOCAL
 import rasterio
+from rasterio.mask import mask
 from pathlib import Path
 
 
@@ -61,6 +62,22 @@ def coregisterS1(s1, region, kwargs):
         else:
             continue
 
+def renameTifs(path):
+    """
+    This function takes a folder and renames the coregisterd tifs. Eventually.
+    """
+
+    """
+    alles string
+    erstmal splitte ich by seperator
+    und dann bekomm ich ne liste zurück
+    und dann inidizier ich 0 und last
+    ODER
+    ich benuzte wie hieß das nochmal
+    anna kann sich keine sachen merken und ich schreib das nicht auf
+    find und rfind
+    find ist für den ersten abschnitt
+    und rfind für den letzten"""
 
 def loadTifs(filepath):
     """
@@ -71,3 +88,12 @@ def loadTifs(filepath):
     return [rasterio.open(f) for f in path]
 
 
+
+def maskTif(tif, shapefile):
+    """
+    Ideally, this function will take a tif and a shapefile and mask out everything outside the area
+    """
+    shapefile = shapefile.to_crs(tif.crs)
+
+    masked_tif, _ = mask(tif, shapefile.geometry, filled=True)
+    return masked_tif
