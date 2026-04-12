@@ -13,6 +13,7 @@ from rasterio.io import MemoryFile
 from rasterio.warp import reproject, Resampling
 from pathlib import Path
 from datetime import datetime
+from collections import defaultdict
 
 
 def getS1date(img):
@@ -62,7 +63,7 @@ def coregisterS1(s1, region, kwargs):
             coreg = COREG_LOCAL(path_img2, path_img1, **kwargs)
             coreg.correct_shifts()
             crl_afterCORR = COREG_LOCAL(path_img2, coreg.path_out, **kwargs)
-            #crl_afterCORR.view_CoRegPoints(figsize=(15,15), backgroundIm='ref')
+            
             coreg = None
             crl_afterCORR = None
         else:
@@ -70,7 +71,7 @@ def coregisterS1(s1, region, kwargs):
 
 def renameTifs(path, out_folder=None, move=False, recursive=True):
     """
-    This function takes a folder and renames the coregisterd tifs. Eventually.
+    This function takes a folder and renames the coregisterd tifs.
     """
 
     src = Path(path)
@@ -131,6 +132,7 @@ def renameTifs(path, out_folder=None, move=False, recursive=True):
 
     print(f"Written files: {len(ops)} to {dst}")   
     return ops
+
 
 def loadTifs(filepath):
     """
@@ -269,3 +271,67 @@ def maskTif_loop(
 
     return masked_arrays, template
 
+def get_dates(path):
+    """
+    This function returns the dates read from the file names
+    """
+    dates = []
+
+    for tif in path:
+        name = Path(tif).name
+        d_str = name[:8]
+        dates.append(datetime.strptime(d_str, "%Y%m%d"))
+    
+    return dates
+
+def compute_export_means(
+        masked_arrays,
+        dates,
+        template,
+        out_dir,
+        base_name="mean_ice_velocity"):
+    """
+    this function computes annual and monthly means of the rasters and writes them as tif to the disk.
+    """
+    if len(masked_arrays) != len(dates):
+        raise ValueError("masked arrays and dates must have the same length")
+    
+    stack = np.stack([np.squeeze(arr) for arr in masked_arrays], axis=0).astype("float32")
+    nodata = template["nodata"]
+    stack[stack == nodata] = np.nan
+
+    by_year = defaultdict(list)
+    by_month = defaultdict(list)
+
+    for i, d in enumerate(dates):
+        by_year[d.year].append(i)
+        by_month[(d.year, d.month)].append(i)
+    
+    annual_means = {y: np.nanmean(stack[i], axis=0) for y,i in by_year.items()}
+    monthly_means = {(y,m): np.nanmean(stack[i], axis=0) for (y,m),i in by_month.items()}
+
+    profile = {
+        "driver": "GTiff",
+        "height": template["height"],
+        "width": template["width"],
+        "count": 1,
+        "dtype": "float32",
+        "crs": template["crs"],
+        "transform": template["transform"],
+        "nodata": np.nan,
+    }
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    for y, arr in annual_means.items():
+        out_path = out_dir / f"{y}_{base_name}.tif"
+        with rasterio.open(out_path, "w", **profile) as dst:
+            dst.write(arr.astype("float32"),1)
+
+    for (y, m), arr in monthly_means.items():
+        out_path = out_dir / f"{y}_{m:02d}_{base_name}.tif"
+        with rasterio.open(out_path, "w", **profile) as dst:
+            dst.write(arr.astype("float32"),1)
+    
+    return annual_means, monthly_means

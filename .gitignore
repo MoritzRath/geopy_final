@@ -206,11 +206,8 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-
-data/geodata/vega_island_outline.cpg
-data/geodata/vega_island_outline.dbf
-data/geodata/vega_island_outline.prj
-data/geodata/vega_island_outline.shp
-data/geodata/vega_island_outline.shx
-
-data/
+data/trash
+data/coregister
+data/coregister_coregistered
+data/means
+data/geodata/dem.tif
