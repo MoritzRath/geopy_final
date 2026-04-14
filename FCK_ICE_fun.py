@@ -164,7 +164,7 @@ def shift_to_vel(df, pixel_size=1):
 
         displacement_m = np.nanmean(np.abs(arr)) * pixel_size
         velocity_m_per_day = displacement_m / r.delta_days
-        velocities.append((row.mid_date, velocity_m_per_day))
+        velocities.append((r.mid_date, velocity_m_per_day))
 
     s = pd.Series(
         {date: vel for date, vel in velocities}
