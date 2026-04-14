@@ -7,6 +7,7 @@ import re
 import shutil
 from arosics import COREG_LOCAL
 import numpy as np
+import pandas as pd
 import rasterio
 from rasterio.mask import mask
 from rasterio.io import MemoryFile
@@ -82,29 +83,44 @@ def renameTifs(path, out_folder=None, move=False, recursive=True):
         dst = Path(out_folder)
 
     pattern = re.compile(r"(\d{8})__shifted_to__(\d{8})", re.IGNORECASE)
+    records = []
+
     iterator = src.rglob("*") if recursive else src.glob("*")
     files = [p for p in iterator if p.is_file() and p.suffix.lower() in (".tif")]
     
-    ops = []
-    unmatched = []
-
+    dst.mkdir(parents=True, exist_ok=True)
+    
     for f in files:
-        if dst in f.parents:
-            continue
-
         m = pattern.search(f.stem)
         if not m:
-            unmatched.append(f.name)
-            continue
+            continue       
 
-        d1 = datetime.strptime(m.group(1), "%Y%m%d").date()
-        d2 = datetime.strptime(m.group(2), "%Y%m%d").date()
+        d1 = datetime.strptime(m.group(1), "%Y%m%d")
+        d2 = datetime.strptime(m.group(2), "%Y%m%d")
+        mid_date = d1+ (d2 -d1) / 2
+        delta_days = (d2-d1).days
 
-        mid_ordinal = (d1.toordinal() + d2.toordinal()) // 2
-        mid_date = datetime.fromordinal(mid_ordinal).strftime("%Y%m%d")
+        #mid_ordinal = (d1.toordinal() + d2.toordinal()) // 2
+        #mid_date = datetime.fromordinal(mid_ordinal).strftime("%Y%m%d")
 
-        target = dst / f"{mid_date}_coregistered.tif"
+        target = dst / f"{mid_date:%Y%m%d}_coregistered.tif"
 
+        if move:
+            shutil.move(str(f), str(target))
+        else:
+            shutil.copy2(f, target)
+
+        records.append({
+            "src": str(f),
+            "dst": str(target),
+            "date1": d1,
+            "date2": d2,
+            "mid_date": mid_date,
+            "delta_days": delta_days,
+        })
+
+    return pd.DataFrame(records)
+"""
         if target.exists():
             i = 1
             while True:
@@ -132,7 +148,32 @@ def renameTifs(path, out_folder=None, move=False, recursive=True):
 
     print(f"Written files: {len(ops)} to {dst}")   
     return ops
+"""
 
+def shift_to_vel(df, pixel_size=1):
+    df = df.copy()
+    df["mid_date"] = pd.to_datetime(df["mid_date"])
+
+    velocities = []
+    for r in df.itertuples(index=False):
+        with rasterio.open(r.dst) as src:
+            arr = src.read(1).astype("float32")
+            nodata = src.nodata if src.nodata is not None else np.nan
+        
+        arr[arr == nodata] = np.nan
+
+        displacement_m = np.nanmean(np.abs(arr)) * pixel_size
+        velocity_m_per_day = displacement_m / r.delta_days
+        velocities.append((row.mid_date, velocity_m_per_day))
+
+    s = pd.Series(
+        {date: vel for date, vel in velocities}
+    ).sort_index()
+
+    daily_index = pd.date_range(s.index.min().floor("D"), s.index.max().ceil("D"), freq="D")
+    daily_velocity = s.reindex(daily_index). interpolate("time").ffill().bffill()
+
+    return daily_velocity
 
 def loadTifs(filepath):
     """
@@ -284,6 +325,7 @@ def get_dates(path):
     
     return dates
 
+
 def compute_export_means(
         masked_arrays,
         dates,
@@ -335,3 +377,33 @@ def compute_export_means(
             dst.write(arr.astype("float32"),1)
     
     return annual_means, monthly_means
+
+def single_mean_abs(
+        masked_arrays,
+        dates, 
+        template=None
+):
+    """
+    This function calculates the mean of a single shift raster and its absolute and stores it in a dictionaries
+    """
+    if len(masked_arrays) != len(dates):
+        raise ValueError("masked arrays and dates must have the same length")
+    
+    nodata = None if template is None else template.get("nodata", None)
+    
+    single_abs = {}
+    single_means = {}
+
+    for arr, d in zip(masked_arrays, dates):
+        key = (d.year, d.month, d.day)
+        a = np.squeeze(arr).astype("float32")
+
+        if nodata is not None:
+            a[a== nodata] = np.nan
+        
+        abs_a = np.abs(a)
+
+        single_abs[key] = abs_a
+        single_means[key] = float(np.nanmean(abs_a))
+    
+    return single_abs, single_means
