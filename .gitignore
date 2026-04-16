@@ -211,3 +211,5 @@ data/coregister
 data/coregister_coregistered
 data/means
 data/geodata/dem.tif
+
+figures
