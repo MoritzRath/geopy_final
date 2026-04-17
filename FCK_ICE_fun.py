@@ -183,7 +183,28 @@ def loadTifs(filepath):
     path = sorted(Path(filepath).glob('*.tif'))
     return [rasterio.open(f) for f in path]
 
+def _write_tif(array_3d, profile_temp, out_path, nodata_value):
+    """
+    writes the masked arrays to the disk
+    """
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    array_to_write = np.abs(array_3d.astype("float32"))
+
+    out_profile = profile_temp.copy()
+    out_profile.update(
+        driver="GTiff",
+        count=array_to_write.shape[0],
+        height=array_to_write.shape[1],
+        width=array_to_write.shape[2],
+        nodata=nodata_value,
+        dtype="float32",
+        compress="lzw"
+    )
+
+    with rasterio.open(out_path, "w", **out_profile) as dst:
+        dst.write(array_3d)
 
 def maskTif(tif, 
             region_shp, 
@@ -191,7 +212,9 @@ def maskTif(tif,
             crop=False, 
             nodata=None, 
             invert_glacier=False,
-            template=None):
+            template=None,
+            write=False,
+            out_path=None):
     """
     Ideally, this function will take a tif and two shapefiles and mask out everything outside the area
     """
@@ -250,9 +273,37 @@ def maskTif(tif,
                 resampling=Resampling.nearest
             )
 
-        return dst, template["transform"]
+        result_arr = dst
+        result_tranform = template["transform"]
+        result_profile = tif.profile.copy()
+        result_profile.update(
+            crs=template["crs"],
+            transform=tr_final,
+            height=result_arr.shape[1],
+            width=result_arr.shape[2],
+            dtype=result_arr.dtype,
+            nodata=nodata
+        )
 
-    return arr_final, tr_final
+    else:
+        result_arr= arr_final
+        result_tranform=tr_final,
+        result_profile = tif.profile.copy()
+        result_profile.update(
+            crs=tif.crs,
+            transform=tr_final,
+            height=result_arr.shape[1],
+            width=result_arr.shape[2],
+            dtype=result_arr.dtype,
+            nodata=nodata
+        )
+    
+    if write:
+        if out_path is None:
+            raise ValueError("outpath must be provided")
+        _write_tif(result_arr, result_profile, out_path, nodata)
+
+    return result_arr, result_tranform
 
 def maskTif_loop(
         tif_list,
@@ -260,23 +311,40 @@ def maskTif_loop(
         glacier_shp,
         crop=False,
         nodata=None,
-        invert_glacier=False
+        invert_glacier=False,
+        write=False,
+        out_dir=None,
+        out_suffix="_masked"
 ):
     
     masked_arrays = []
     template = None
 
-    for tif in tif_list:
-        arr, tr = maskTif(
-            tif, 
-            region_shp,
-            glacier_shp,
-            crop=crop,
-            nodata=nodata,
-            invert_glacier=invert_glacier
-        )
+    if write:
+        if out_dir is None:
+            raise ValueError("outdir must be provided")
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    for i, tif in enumerate(tif_list):
+        this_out_path = None
+        if write:
+            src_name = Path(tif.name).stem if getattr(tif, "name", None) else f"masked_{i:04d}"
+            this_out_path = out_dir / f"{src_name}{out_suffix}.tif"
     
         if template is None:
+            arr, tr = maskTif(
+                tif, 
+                region_shp,
+                glacier_shp,
+                crop=crop,
+                nodata=nodata,
+                invert_glacier=invert_glacier,
+                template=None,
+                write=write,
+                out_path=this_out_path
+            )    
+
             nd = nodata if nodata is not None else (tif.nodata if tif.nodata is not None else 0)
             template = {
                 "crs": tif.crs,
@@ -289,6 +357,21 @@ def maskTif_loop(
             masked_arrays.append(arr)
             continue
 
+        arr, _ = maskTif(
+                tif, 
+                region_shp,
+                glacier_shp,
+                crop=crop,
+                nodata=nodata,
+                invert_glacier=invert_glacier,
+                template=template,
+                write=write,
+                out_path=this_out_path
+            )
+        
+        masked_arrays.append(arr)
+
+        """
         dst = np.full(
             (arr.shape[0], template["height"], template["width"]),
             template["nodata"],
@@ -309,6 +392,7 @@ def maskTif_loop(
             )
     
         masked_arrays.append(dst)
+        """
 
     return masked_arrays, template
 
