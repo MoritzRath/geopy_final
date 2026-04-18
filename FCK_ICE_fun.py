@@ -204,7 +204,7 @@ def _write_tif(array_3d, profile_temp, out_path, nodata_value):
     )
 
     with rasterio.open(out_path, "w", **out_profile) as dst:
-        dst.write(array_3d)
+        dst.write(array_to_write)
 
 def maskTif(tif, 
             region_shp, 
@@ -268,7 +268,7 @@ def maskTif(tif,
                 src_crs=tif.crs,
                 dst_transform=template["transform"],
                 dst_crs=template["crs"],
-                scr_nodata=nodata,
+                src_nodata=nodata,
                 dst_nodata=nodata,
                 resampling=Resampling.nearest
             )
@@ -278,7 +278,7 @@ def maskTif(tif,
         result_profile = tif.profile.copy()
         result_profile.update(
             crs=template["crs"],
-            transform=tr_final,
+            transform=template["transform"],
             height=result_arr.shape[1],
             width=result_arr.shape[2],
             dtype=result_arr.dtype,
@@ -287,7 +287,7 @@ def maskTif(tif,
 
     else:
         result_arr= arr_final
-        result_tranform=tr_final,
+        result_tranform=tr_final
         result_profile = tif.profile.copy()
         result_profile.update(
             crs=tif.crs,
@@ -357,7 +357,7 @@ def maskTif_loop(
             masked_arrays.append(arr)
             continue
 
-        arr, _ = maskTif(
+        arr, tr = maskTif(
                 tif, 
                 region_shp,
                 glacier_shp,
