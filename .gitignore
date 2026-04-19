@@ -213,5 +213,6 @@ data/means
 data/geodata/dem.tif
 data/geodata/dem.tif.aux.xml
 data/masked
+Rath_MAP.pdf
 
 figures

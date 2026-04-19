@@ -120,35 +120,7 @@ def renameTifs(path, out_folder=None, move=False, recursive=True):
         })
 
     return pd.DataFrame(records)
-"""
-        if target.exists():
-            i = 1
-            while True:
-                candidate = dst / f"{mid_date}_coregistered_{i:02d}.tif"
-                if not candidate.exists():
-                    target = candidate
-                    break
-                i += 1
-        ops.append((f, target))
 
-    print(f"Source folder: {src}")
-    print(f"Found tif/tiff files: {len(files)}")
-    print(f"Matched rename pattern: {len(ops)}")
-    if unmatched:
-        print(f"Unmatched files (first 10): {unmatched[:10]}")
-
-    
-    dst.mkdir(parents=True, exist_ok=True)
-
-    for old, new in ops:
-        if move:
-            shutil.move(str(old), str(new))
-        else:
-            shutil.copy2(old, new)
-
-    print(f"Written files: {len(ops)} to {dst}")   
-    return ops
-"""
 
 def shift_to_vel(df, pixel_size=1):
     df = df.copy()
@@ -370,29 +342,6 @@ def maskTif_loop(
             )
         
         masked_arrays.append(arr)
-
-        """
-        dst = np.full(
-            (arr.shape[0], template["height"], template["width"]),
-            template["nodata"],
-            dtype=template["dtype"],
-        )
-
-        for b in range(arr.shape[0]):
-            reproject(
-                source=arr[b],
-                destination=dst[b],
-                src_transform=tr,
-                src_crs=tif.crs,
-                dst_transform=template["transform"],
-                dst_crs=template["crs"],
-                src_nodata=template["nodata"],
-                dst_nodata=template["nodata"],
-                resampling=Resampling.nearest,
-            )
-    
-        masked_arrays.append(dst)
-        """
 
     return masked_arrays, template
 
